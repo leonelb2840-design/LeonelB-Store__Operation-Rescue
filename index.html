@@ -1,0 +1,111 @@
+🏐
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeonelB 2.0: Turbo Mode</title>
+    <style>
+        body { margin: 0; background: #050505; color: #00ff00; font-family: 'Courier New', monospace; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        canvas { background: #111; border: 3px solid #00ff00; box-shadow: 0 0 15px #00ff00; touch-action: none; cursor: none; }
+        .stats { margin-bottom: 10px; font-weight: bold; font-size: 1.1rem; }
+        #turboBtn { margin-top: 15px; padding: 15px 30px; background: #f00; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; text-transform: uppercase; box-shadow: 0 5px #900; }
+        #turboBtn:active { box-shadow: 0 2px #900; transform: translateY(3px); }
+    </style>
+</head>
+<body>
+    <div class="stats">ARCHIVOS: <span id="score">0</span> | VIDAS: <span id="lives">3</span></div>
+    <canvas id="game"></canvas>
+    <button id="turboBtn">¡BOTÓN TURBO! ⚡</button>
+<script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const livesEl = document.getElementById("lives");
+    const turboBtn = document.getElementById("turboBtn");
+    canvas.width = 350;
+    canvas.height = 450;
+    let score = 0;
+    let lives = 3;
+    let gameActive = true;
+    let isTurbo = false;
+    const player = { x: 150, y: 380, w: 50, h: 50 };
+    const items = [];
+    // --- SISTEMA DE AUDIO (Sintetizador Criollo) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playTone(freq, type, duration) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+    // --- CONTROLES ---
+    function move(e) {
+        let x = e.touches ? e.touches[0].clientX : e.clientX;
+        let rect = canvas.getBoundingClientRect();
+        player.x = (x - rect.left) - player.w / 2;
+    }
+    canvas.addEventListener("touchmove", move);
+    canvas.addEventListener("mousemove", move);
+    turboBtn.addEventListener("mousedown", () => { isTurbo = true; turboBtn.style.background = "#0f0"; });
+    turboBtn.addEventListener("mouseup", () => { isTurbo = false; turboBtn.style.background = "#f00"; });
+    turboBtn.addEventListener("touchstart", () => { isTurbo = true; turboBtn.style.background = "#0f0"; });
+    turboBtn.addEventListener("touchend", () => { isTurbo = false; turboBtn.style.background = "#f00"; });
+    function createItem() {
+        const isEnemy = Math.random() < 0.35;
+        items.push({
+            x: Math.random() * (canvas.width - 30),
+            y: -30,
+            speed: (Math.random() * 2 + 2) + (score / 15),
+            type: isEnemy ? "🚫" : "📦"
+        });
+    }
+    function update() {
+        if (!gameActive) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Si hay TURBO, el pingüino brilla
+        ctx.font = "40px serif";
+        if (isTurbo) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = "#00ff00";
+        }
+        ctx.fillText("🐧", player.x, player.y + 40);
+        ctx.shadowBlur = 0;
+        items.forEach((item, i) => {
+            item.y += isTurbo ? item.speed * 0.5 : item.speed; // El Turbo ralentiza los enemigos (Efecto Matrix)
+            ctx.fillText(item.type, item.x, item.y + 25);
+            // Colisión
+            if (item.y + 25 > player.y && item.y < player.y + 40 &&
+                item.x + 30 > player.x && item.x < player.x + 40) {
+                
+                if (item.type === "📦") {
+                    score++;
+                    scoreEl.innerText = score;
+                    playTone(600, "sine", 0.1); // Bip de éxito
+                } else {
+                    lives--;
+                    livesEl.innerText = lives;
+                    playTone(150, "sawtooth", 0.3); // Error
+                    if (lives <= 0) {
+                        gameActive = false;
+                        alert("SISTEMA TUMBADO. Archivos rescatados: " + score);
+                        location.reload();
+                    }
+                }
+                items.splice(i, 1);
+            }
+            if (item.y > canvas.height) items.splice(i, 1);
+        });
+        if (Math.random() < 0.04) createItem();
+        requestAnimationFrame(update);
+    }
+    update();
+</script>
+</body>
+</html>
