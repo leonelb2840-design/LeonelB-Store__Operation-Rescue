@@ -21,7 +21,7 @@ Este no es solo un juego, es la representación de nuestra lucha por mantener la
 - **Optimización:** Ejecución fluida en dispositivos de gama baja (Mentalidad de Rico).
 
 ### 🔗 Enlaces Oficiales
-- [📺 Mi Canal de YouTube](https://youtube.com/@officialleonelb284?si=AWR80wt7ksBphWCC)
+- [📺 Mi Canal de YouTube](https://youtube.com/@official-leonelb?si=DJQ-nicXX4YtFUL5)
 - [🏬 LeonelB Store 2.0](https://leonelb2840-design.github.io/LeonelB-Store-2.0/)
 
 ---
