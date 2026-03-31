@@ -1,0 +1,23 @@
+{
+  "name": "LeonelB Rescue Ultimate 2.0",
+  "short_name": "LB Rescue",
+  "description": "Operación Leonel Rescue: ¡Dale duro a los jefes de la Matrix!",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#00ff00",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-app.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-app.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
