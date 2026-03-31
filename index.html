@@ -1,111 +1,239 @@
-🏐
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#00ff00">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="apple-touch-icon" href="https://github.com/leonelb2840-design.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LB Store">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LeonelB 2.0: Turbo Mode</title>
+    <title>LeonelB Store: Boss Matrix Fixed 🦁</title>
     <style>
         body { margin: 0; background: #050505; color: #00ff00; font-family: 'Courier New', monospace; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        canvas { background: #111; border: 3px solid #00ff00; box-shadow: 0 0 15px #00ff00; touch-action: none; cursor: none; }
-        .stats { margin-bottom: 10px; font-weight: bold; font-size: 1.1rem; }
-        #turboBtn { margin-top: 15px; padding: 15px 30px; background: #f00; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; text-transform: uppercase; box-shadow: 0 5px #900; }
-        #turboBtn:active { box-shadow: 0 2px #900; transform: translateY(3px); }
+        canvas { background: #0a0a0a; border: 3px solid #00ff00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.4); touch-action: none; cursor: none; animation: flicker 0.15s infinite; }
+        @keyframes flicker { 0% { opacity: 0.98; } 50% { opacity: 1; } 100% { opacity: 0.99; } }
+        .stats { margin-bottom: 10px; font-weight: bold; font-size: 1.1rem; text-shadow: 0 0 5px #00ff00; text-align: center; }
+        .btn-container { display: flex; gap: 10px; margin-top: 15px; }
+        button { padding: 15px 25px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; text-transform: uppercase; transition: 0.1s; font-family: 'Courier New', monospace; }
+        #turboBtn { background: #f00; color: white; box-shadow: 0 5px #900; }
+        #pauseBtn { background: #0055ff; color: white; box-shadow: 0 5px #003399; }
+        button:active { transform: translateY(3px); box-shadow: 0 2px #222; }
+        .active-powers { color: #ffeb3b; font-size: 0.8rem; height: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div class="stats">ARCHIVOS: <span id="score">0</span> | VIDAS: <span id="lives">3</span></div>
+    <div class="stats">
+        RÉCORD: <span id="highScore">0</span><br>
+        ARCHIVOS: <span id="score">0</span> | VIDAS: <span id="lives">3</span>
+        <div id="status" class="active-powers"></div>
+    </div>
     <canvas id="game"></canvas>
-    <button id="turboBtn">¡BOTÓN TURBO! ⚡</button>
+    <div class="btn-container">
+        <button id="pauseBtn">PAUSE</button>
+        <button id="turboBtn">TURBO ⚡</button>
+    </div>
+
 <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
-    const scoreEl = document.getElementById("score");
-    const livesEl = document.getElementById("lives");
-    const turboBtn = document.getElementById("turboBtn");
-    canvas.width = 350;
-    canvas.height = 450;
-    let score = 0;
-    let lives = 3;
-    let gameActive = true;
-    let isTurbo = false;
-    const player = { x: 150, y: 380, w: 50, h: 50 };
+    const scoreEl = document.getElementById("score"), livesEl = document.getElementById("lives"), highScoreEl = document.getElementById("highScore"), statusEl = document.getElementById("status"), turboBtn = document.getElementById("turboBtn"), pauseBtn = document.getElementById("pauseBtn");
+    
+    canvas.width = 350; canvas.height = 450;
+    
+    let score = 0, lives = 3, gameActive = true, isTurbo = false, scanlineOffset = 0;
+    let hasShield = false, hasMagnet = false, hasVirusMagnet = false, isGlitched = false;
+
+    // --- LÓGICA DE JEFES ---
+    let isBossActive = false;
+    let bossLevel = 1;
+    let nextBossScore = 150; 
+    let nextBossLives = 10;
+    let bossX = 150, bossDir = 3, bossTimer = 0;
+    const bossEmojis = ["👾", "🛸", "🤖", "👹", "🐲"];
+
+    let highScore = 0;
+    try { highScore = localStorage.getItem("lb_high_score") || 0; } catch (e) {}
+    highScoreEl.innerText = highScore;
+
+    const player = { x: 150, y: 380, w: 50, h: 50 }; // El "w" cambiará con la "comida"
     const items = [];
-    // --- SISTEMA DE AUDIO (Sintetizador Criollo) ---
+
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playTone(freq, type, duration) {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
+        try {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.start(); osc.stop(audioCtx.currentTime + duration);
+        } catch(e) {}
     }
-    // --- CONTROLES ---
+
     function move(e) {
+        if (!gameActive) return;
         let x = e.touches ? e.touches[0].clientX : e.clientX;
         let rect = canvas.getBoundingClientRect();
-        player.x = (x - rect.left) - player.w / 2;
+        let targetX = (x - rect.left) - player.w / 2;
+        if (isGlitched) targetX = canvas.width - targetX - player.w;
+        player.x = Math.max(0, Math.min(canvas.width - player.w, targetX));
     }
+
     canvas.addEventListener("touchmove", move);
     canvas.addEventListener("mousemove", move);
-    turboBtn.addEventListener("mousedown", () => { isTurbo = true; turboBtn.style.background = "#0f0"; });
-    turboBtn.addEventListener("mouseup", () => { isTurbo = false; turboBtn.style.background = "#f00"; });
-    turboBtn.addEventListener("touchstart", () => { isTurbo = true; turboBtn.style.background = "#0f0"; });
-    turboBtn.addEventListener("touchend", () => { isTurbo = false; turboBtn.style.background = "#f00"; });
-    function createItem() {
-        const isEnemy = Math.random() < 0.35;
+    
+    pauseBtn.addEventListener("click", () => {
+        gameActive = !gameActive;
+        pauseBtn.innerText = gameActive ? "PAUSE" : "RESUME";
+        pauseBtn.style.background = gameActive ? "#0055ff" : "#00ff00";
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    });
+
+    const activateTurbo = () => { if (!gameActive) return; isTurbo = true; turboBtn.style.background = "#0f0"; playTone(800, "square", 0.05); };
+    const deactivateTurbo = () => { isTurbo = false; turboBtn.style.background = "#f00"; };
+    turboBtn.addEventListener("touchstart", (e) => { e.preventDefault(); activateTurbo(); });
+    turboBtn.addEventListener("touchend", deactivateTurbo);
+
+    function createItem(typeOverride = null) {
+        if (!gameActive) return;
+        const rand = Math.random();
+        let type = typeOverride || "📦"; 
+        if (!typeOverride) {
+            if (rand < 0.25) type = "🚫"; 
+            else if (rand > 0.98) type = "🔑";
+            else if (rand > 0.95) type = "⭐"; 
+            else if (rand > 0.92) type = "💎"; 
+            else if (rand > 0.89) type = "💀"; 
+            else if (rand > 0.86) type = "📉";
+        }
         items.push({
-            x: Math.random() * (canvas.width - 30),
-            y: -30,
-            speed: (Math.random() * 2 + 2) + (score / 15),
-            type: isEnemy ? "🚫" : "📦"
+            x: typeOverride ? bossX + 20 : Math.random() * (canvas.width - 40),
+            y: typeOverride ? 60 : -40,
+            speed: typeOverride ? 4 + bossLevel : (isBossActive ? 1 : (Math.random() * 2 + 2) + (score / 35)),
+            type: type
         });
     }
-    function update() {
-        if (!gameActive) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // Si hay TURBO, el pingüino brilla
-        ctx.font = "40px serif";
-        if (isTurbo) {
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = "#00ff00";
+
+    function drawBackground() {
+        ctx.strokeStyle = "rgba(0, 255, 0, 0.1)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < canvas.height; i += 8) {
+            ctx.beginPath();
+            ctx.moveTo(0, i + (scanlineOffset % 8));
+            ctx.lineTo(canvas.width, i + (scanlineOffset % 8));
+            ctx.stroke();
         }
-        ctx.fillText("🐧", player.x, player.y + 40);
+        scanlineOffset += 0.5;
+    }
+
+    function update() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBackground();
+
+        // --- SISTEMA DE JEFES (DETECCIÓN) ---
+        if (!isBossActive && (score >= nextBossScore || lives >= nextBossLives)) {
+            isBossActive = true;
+            bossTimer = 600 + (bossLevel * 200);
+            playTone(150, "sawtooth", 1.5);
+        }
+
+        // DIBUJAR JEFE (Visible incluso en pausa, pero NO se mueve)
+        if (isBossActive) {
+            let bossEmoji = bossEmojis[(bossLevel - 1) % bossEmojis.length];
+            ctx.font = "65px serif";
+            ctx.fillText(bossEmoji, bossX, 55);
+        }
+
+        // Efectos de Power-ups
+        if (hasShield) { ctx.beginPath(); ctx.arc(player.x+25, player.y+25, 35, 0, Math.PI*2); ctx.strokeStyle = "#00bcd4"; ctx.stroke(); }
+        if (hasVirusMagnet) { ctx.beginPath(); ctx.arc(player.x+25, player.y+25, 40, 0, Math.PI*2); ctx.setLineDash([5, 5]); ctx.strokeStyle = "red"; ctx.stroke(); ctx.setLineDash([]); }
+        if (isGlitched) { ctx.shadowBlur = 15; ctx.shadowColor = "red"; }
+
+        // DIBUJAR JUGADOR (Con reacción al agarrar zip)
+        ctx.font = `${player.w - 5}px serif`;
+        if (isTurbo && gameActive) { ctx.shadowBlur = 25; ctx.shadowColor = "#00ff00"; }
+        ctx.fillText("🦁", player.x, player.y + 40);
         ctx.shadowBlur = 0;
-        items.forEach((item, i) => {
-            item.y += isTurbo ? item.speed * 0.5 : item.speed; // El Turbo ralentiza los enemigos (Efecto Matrix)
-            ctx.fillText(item.type, item.x, item.y + 25);
-            // Colisión
-            if (item.y + 25 > player.y && item.y < player.y + 40 &&
-                item.x + 30 > player.x && item.x < player.x + 40) {
-                
-                if (item.type === "📦") {
-                    score++;
-                    scoreEl.innerText = score;
-                    playTone(600, "sine", 0.1); // Bip de éxito
-                } else {
-                    lives--;
-                    livesEl.innerText = lives;
-                    playTone(150, "sawtooth", 0.3); // Error
-                    if (lives <= 0) {
-                        gameActive = false;
-                        alert("SISTEMA TUMBADO. Archivos rescatados: " + score);
-                        location.reload();
-                    }
+
+        if (!gameActive) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#0f0"; ctx.font = "20px 'Courier New'"; ctx.textAlign = "center";
+            ctx.fillText("SISTEMA EN PAUSA", canvas.width/2, canvas.height/2); ctx.textAlign = "left";
+        } else {
+            // --- LÓGICA ACTIVA (Solo corre si NO hay pausa) ---
+            
+            if (isBossActive) {
+                statusEl.innerText = `BOSS ${bossLevel}: SOBREVIVE! ${Math.ceil(bossTimer/60)}s`;
+                statusEl.style.color = "#ff00ff";
+                bossX += bossDir * (1 + bossLevel * 0.2);
+                if (bossX <= 0 || bossX >= canvas.width - 65) bossDir *= -1;
+                if (bossTimer % Math.max(5, 25 - bossLevel * 2) === 0) createItem("🚫");
+                bossTimer--;
+
+                if (bossTimer <= 0) {
+                    isBossActive = false;
+                    score += 50 * bossLevel; lives += 2;
+                    scoreEl.innerText = score; livesEl.innerText = lives;
+                    statusEl.innerText = `BOSS ${bossLevel} DERROTADO`;
+                    bossLevel++;
+                    nextBossScore *= 2; nextBossLives *= 2; 
+                    playTone(1000, "sine", 0.5);
+                    setTimeout(() => statusEl.innerText = "", 3000);
                 }
-                items.splice(i, 1);
             }
-            if (item.y > canvas.height) items.splice(i, 1);
-        });
-        if (Math.random() < 0.04) createItem();
+
+            items.forEach((item, i) => {
+                if (hasMagnet && item.type === "📦") item.x += (player.x - item.x) * 0.07;
+                if (hasVirusMagnet && item.type === "🚫") item.x += (player.x - item.x) * 0.08;
+
+                item.y += isTurbo ? item.speed * 0.4 : item.speed;
+                ctx.font = "30px serif"; ctx.fillText(item.type, item.x, item.y + 30);
+
+                if (item.y + 30 > player.y && item.y < player.y + 40 && item.x + 30 > player.x && item.x < player.x + 40) {
+                    if (item.type === "📦") { 
+                        score++; scoreEl.innerText = score; playTone(600, "sine", 0.1); 
+                        // LA COMIDA: El León reacciona
+                        player.w = 65; setTimeout(() => player.w = 50, 150);
+                    }
+                    else if (item.type === "🔑") { lives++; livesEl.innerText = lives; playTone(900, "sine", 0.2); }
+                    else if (item.type === "⭐") { hasShield = true; statusEl.innerText = "SHIELD ACTIVE"; setTimeout(() => { hasShield = false; statusEl.innerText = ""; }, 5000); }
+                    else if (item.type === "💎") { hasMagnet = true; statusEl.innerText = "MAGNET ACTIVE"; setTimeout(() => { hasMagnet = false; statusEl.innerText = ""; }, 8000); }
+                    else if (item.type === "📉") { hasVirusMagnet = true; statusEl.innerText = "VIRUS ATTRACTION!"; setTimeout(() => { hasVirusMagnet = false; statusEl.innerText = ""; }, 6000); }
+                    else if (item.type === "💀") { isGlitched = true; statusEl.innerText = "SYSTEM GLITCHED!"; setTimeout(() => { isGlitched = false; statusEl.innerText = ""; }, 4000); }
+                    else {
+                        if (!hasShield) {
+                            lives--; livesEl.innerText = lives; playTone(100, "sawtooth", 0.4);
+                            if (lives <= 0) {
+                                if (score > highScore) try { localStorage.setItem("lb_high_score", score); } catch(e) {}
+                                alert("GAME OVER | BOSSES: " + (bossLevel-1));
+                                location.reload();
+                            }
+                        }
+                    }
+                    items.splice(i, 1);
+                }
+                if (item.y > canvas.height) items.splice(i, 1);
+            });
+            if (Math.random() < 0.05 && !isBossActive) createItem();
+        }
         requestAnimationFrame(update);
     }
     update();
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('SW listo, Leonel!'))
+        .catch(err => console.log('Error en el SW:', err));
+    });
+  }
 </script>
 </body>
 </html>
